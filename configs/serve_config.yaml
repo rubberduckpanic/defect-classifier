@@ -1,0 +1,24 @@
+# Serving configuration
+server:
+  host: 0.0.0.0
+  port: 8000
+  workers: 1
+
+model:
+  path: models/best_model.pt
+  device: cpu  # cpu or cuda
+  version: v1.0
+
+inference:
+  input_size: [224, 224]
+  confidence_threshold: 0.5
+  class_names: ["non_defective", "defective"]
+
+logging:
+  prediction_log: logs/predictions.jsonl
+  log_level: INFO
+
+monitoring:
+  drift_window_size: 100
+  drift_check_interval: 50
+  confidence_alert_threshold: 0.7

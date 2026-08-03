@@ -1,0 +1,33 @@
+# Training configuration
+experiment:
+  name: defect_classifier
+  tracking_uri: mlruns
+
+model:
+  architecture: resnet18  # Options: baseline_cnn, resnet18, efficientnet_b0
+  pretrained: true
+  num_classes: 2
+  freeze_backbone: false
+
+training:
+  epochs: 20
+  batch_size: 32
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  optimizer: adam
+  scheduler:
+    type: cosine
+    T_max: 20
+  early_stopping:
+    patience: 5
+    metric: val_loss
+
+data:
+  train_dir: data/processed/train
+  val_dir: data/processed/val
+  test_dir: data/processed/test
+  num_workers: 4
+
+artifacts:
+  model_dir: models
+  best_model_name: best_model.pt
