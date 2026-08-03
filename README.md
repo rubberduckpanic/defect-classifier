@@ -76,21 +76,66 @@ defect-classifier/
 
 ## Setup
 
+### 1. Clone and install
+
 ```bash
-# Clone and set up environment
-git clone https://github.com/<your-org>/defect-classifier.git
+git clone https://github.com/rubberduckpanic/defect-classifier.git
 cd defect-classifier
 python -m venv venv
 venv\Scripts\activate       # Windows
 pip install -r requirements.txt
+```
 
-# Pull data
+### 2. Create your feature branch
+
+Do NOT push directly to `main`. All changes go through pull requests.
+
+```bash
+# Create and switch to your feature branch
+git checkout -b feature/<your-name-or-feature>
+
+# Examples:
+git checkout -b feature/data-pipeline
+git checkout -b feature/model-training
+git checkout -b feature/serving-monitoring
+```
+
+### 3. Work, commit, and push your branch
+
+```bash
+# Make your changes, then:
+git add <files-you-changed>
+git commit -m "Descriptive commit message"
+git push -u origin feature/<your-branch-name>
+```
+
+### 4. Open a Pull Request
+
+1. Go to the repo on GitHub
+2. Click "Compare & pull request" (appears after you push)
+3. Target branch: `main`
+4. Add a description of what you did
+5. Wait for review and approval before merging
+
+### 5. Keep your branch up to date
+
+```bash
+# Pull latest main into your branch periodically
+git checkout feature/<your-branch-name>
+git pull origin main
+```
+
+### 6. Pull data and run the pipeline
+
+```bash
 dvc pull
 
-# Run the pipeline
+# Data pipeline
 python -m src.data.ingest
 python -m src.data.validate
 python -m src.data.preprocess
+
+# Training
 python -m src.training.train --config configs/train_config.yaml
 
 # Start the API
