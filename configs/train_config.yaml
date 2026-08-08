@@ -1,33 +1,49 @@
-# Training configuration
-experiment:
-  name: defect_classifier
-  tracking_uri: mlruns
+# Training Configuration
+# This file ensures reproducibility — any run can be recreated from these settings.
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  splits_dir: "data/splits"
+  image_size: 224
+  batch_size: 32
+  num_workers: 0
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+augmentation:
+  horizontal_flip: true
+  vertical_flip: false
+  rotation_degrees: 15
+  brightness_jitter: 0.2
+  contrast_jitter: 0.2
+  normalize_mean: [0.485, 0.456, 0.406]
+  normalize_std: [0.229, 0.224, 0.225]
 
 model:
-  architecture: resnet18  # Options: baseline_cnn, resnet18, efficientnet_b0
+  # Options: "cnn_baseline", "resnet18", "efficientnet_b0"
+  architecture: "resnet18"
   pretrained: true
   num_classes: 2
+  dropout: 0.3
   freeze_backbone: false
 
 training:
-  epochs: 20
-  batch_size: 32
+  epochs: 5
   learning_rate: 0.001
   weight_decay: 0.0001
-  optimizer: adam
-  scheduler:
-    type: cosine
-    T_max: 20
-  early_stopping:
-    patience: 5
-    metric: val_loss
+  optimizer: "adam"
+  scheduler: "cosine"
+  early_stopping_patience: 5
+  random_seed: 42
 
-data:
-  train_dir: data/processed/train
-  val_dir: data/processed/val
-  test_dir: data/processed/test
-  num_workers: 4
+mlflow:
+  experiment_name: "defect_classification"
+  tracking_uri: "sqlite:///mlflow.db"
+  log_models: true
 
-artifacts:
-  model_dir: models
-  best_model_name: best_model.pt
+deployment:
+  model_format: "torchscript"  # Options: "torchscript", "onnx"
+  confidence_threshold: 0.5
