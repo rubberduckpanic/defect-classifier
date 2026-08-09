@@ -1,170 +1,238 @@
-# Defect Detection Classifier — ML Engineering Mini-Project
+# Image-Based Defect / Quality Classifier
 
-An end-to-end machine learning pipeline for automatically detecting defective products from production-line images.
+An end-to-end ML system that automatically flags defective products from images captured on a manufacturing production line. The pipeline ingests and preprocesses product images, trains a classifier to distinguish defective from non-defective items, deploys it as an inference service, and monitors performance as new product variants or lighting conditions appear.
 
-## Project Overview
+## Architecture Diagram
 
-This project implements an **Image-Based Defect / Quality Classifier** as part of the ML Engineering (PCAM* ZC412) course. It covers the full ML system lifecycle:
-
-1. **Data Engineering & Versioning** — Image ingestion, validation, preprocessing/augmentation, and dataset versioning with DVC
-2. **Experimentation & Reproducibility** — CNN and transfer-learning model training with MLflow experiment tracking
-3. **Model Packaging & Deployment** — REST API service via FastAPI, containerized with Docker
-4. **Monitoring & Drift Detection** — Prediction logging, distribution shift simulation, and retraining trigger design
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         ML System Architecture                                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌────────────┐    ┌────────────────┐    ┌────────────────┐    ┌─────────────┐  │
+│  │   Data      │    │  Experiment    │    │    Model       │    │ Monitoring  │  │
+│  │  Pipeline   │───▶│  Tracking      │───▶│   Serving      │───▶│  & Drift    │  │
+│  │   (M2)      │    │   (M3)         │    │    (M4)        │    │   (M5)      │  │
+│  └────────────┘    └────────────────┘    └────────────────┘    └─────────────┘  │
+│       │                   │                      │                     │         │
+│       ▼                   ▼                      ▼                     ▼         │
+│  ┌────────────┐    ┌────────────────┐    ┌────────────────┐    ┌─────────────┐  │
+│  │ DVC         │    │ MLflow         │    │ FastAPI        │    │ Drift       │  │
+│  │ Versioned   │    │ Experiments    │    │ + Docker       │    │ Detection   │  │
+│  │ Dataset     │    │ & Registry     │    │ Container      │    │ & Retrain   │  │
+│  └────────────┘    └────────────────┘    └────────────────┘    └─────────────┘  │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Project Structure
 
 ```
 defect-classifier/
-├── configs/
-│   ├── data_config.yaml     # Dataset paths, split ratios, augmentation settings
-│   ├── train_config.yaml    # Model choice, hyperparameters, MLflow config
-│   └── serve_config.yaml    # API port, model path, monitoring thresholds
+├── data/                    # Data directory (DVC tracked)
+│   ├── raw/                 # Original dataset images
+│   ├── processed/           # Preprocessed (resized, RGB) images
+│   └── splits/              # Train/val/test stratified splits
 ├── src/
-│   ├── data/                # Layer 1: Data ingestion, validation, preprocessing
-│   │   ├── ingest.py        #   Download and organize dataset
-│   │   ├── validate.py      #   Check for corrupt/invalid images
-│   │   ├── preprocess.py    #   Resize, normalize, standardize format
-│   │   └── augment.py       #   Training-time augmentations (Albumentations)
-│   ├── training/            # Layer 2: Model training and evaluation
-│   │   ├── dataset.py       #   PyTorch Dataset class
-│   │   ├── models.py        #   CNN, ResNet-18, EfficientNet-B0 architectures
-│   │   ├── train.py         #   Training loop with MLflow tracking
-│   │   └── evaluate.py      #   Metrics, confusion matrix, model comparison
-│   ├── serving/             # Layer 3: REST API for inference
-│   │   ├── app.py           #   FastAPI application (endpoints)
-│   │   ├── inference.py     #   Model loading and prediction logic
-│   │   └── schemas.py       #   Pydantic request/response models
-│   └── monitoring/          # Layer 4: Production monitoring
-│       ├── logger.py        #   Structured prediction logging
-│       ├── drift.py         #   Distribution shift detection
-│       ├── simulate_drift.py#   Artificial drift for testing
-│       └── retrain.py       #   Retraining trigger logic
-├── tests/                   # Unit and integration tests
-├── notebooks/               # EDA and model comparison notebooks
-├── models/                  # Saved model artifacts (.pt files)
-├── docs/                    # Architecture, model report, drift report
-├── data/
-│   ├── raw/                 # Original images (DVC tracked, gitignored)
-│   └── processed/           # Preprocessed train/val/test splits
-├── Dockerfile               # Container image for the API service
-├── docker-compose.yml       # Multi-service setup (API + MLflow)
-├── requirements.txt         # Pinned Python dependencies
-└── .gitignore
+│   ├── data/                # M2: Ingestion, validation, preprocessing
+│   │   ├── ingest.py        # Download from Kaggle or local source
+│   │   ├── validate.py      # Image integrity & quality checks
+│   │   └── preprocess.py    # Resize, normalize, split
+│   ├── training/            # M3: Model training & experiments
+│   │   ├── models.py        # CNN Baseline, ResNet18, EfficientNet-B0
+│   │   ├── dataset.py       # PyTorch Dataset & DataLoaders
+│   │   ├── train.py         # Training loop with MLflow tracking
+│   │   └── run_experiments.py  # Multi-model comparison runner
+│   ├── serving/             # M4: Production API
+│   │   ├── app.py           # FastAPI REST endpoints
+│   │   └── export_model.py  # TorchScript/ONNX export & benchmarking
+│   └── monitoring/          # M5: Drift & retraining
+│       ├── drift_detector.py    # Multi-signal drift detection
+│       ├── simulate_drift.py    # Drift simulation experiments
+│       └── retrain_strategy.py  # Retraining trigger logic
+├── configs/
+│   └── train_config.yaml    # All hyperparameters (single source of truth)
+├── models/                  # Saved model checkpoints
+├── docs/                    # Reports & documentation
+│   ├── model_comparison.md  # Experiment comparison report
+│   ├── drift_report.md      # Drift simulation findings
+│   └── retraining_design.md # Retraining strategy document
+├── logs/                    # Monitoring & prediction logs
+├── notebooks/               # Exploration notebooks
+├── dvc.yaml                 # DVC pipeline DAG
+├── Dockerfile               # Production container
+├── docker-compose.yml       # Multi-service deployment
+├── requirements.txt         # Python dependencies (pinned versions)
+├── Makefile                 # Common commands
+└── README.md
 ```
-
-## Tech Stack
-
-| Component | Tool |
-|-----------|------|
-| Language | Python 3.10+ |
-| Deep Learning | PyTorch, torchvision |
-| Experiment Tracking | MLflow |
-| Data Versioning | DVC |
-| API Framework | FastAPI + Uvicorn |
-| Containerization | Docker |
-| Drift Detection | Evidently AI / scipy |
-| Image Processing | Pillow, OpenCV, Albumentations |
-| Testing | pytest |
 
 ## Dataset
 
-**Casting Product Image Data for Quality Inspection** from Kaggle.
-
-- ~7000 images (512x512 grayscale)
-- Binary classification: `def_front` (defective) vs `ok_front` (non-defective)
+**Casting Product Image Data for Quality Inspection** (Kaggle)
 - Source: https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product
+- Binary classification: defective vs non-defective casting products
+- ~7000 images (300x300 grayscale)
+- License: CC0 Public Domain
 
-## Setup
+## Setup Instructions to follow
 
-### 1. Clone and install
+### Prerequisites
+- Python 3.10+
+- Docker & Docker Compose
+- Git
+- DVC (`pip install dvc`)
+
+### Installation
 
 ```bash
-git clone https://github.com/rubberduckpanic/defect-classifier.git
+# 1. Clone the repository
+git clone <repository-url>
 cd defect-classifier
+
+# 2. Create virtual environment
 python -m venv venv
-venv\Scripts\activate       # Windows
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # Linux/Mac
+
+# 3. Install dependencies
 pip install -r requirements.txt
+
+# 4. Initialize DVC (if not already)
+dvc init
+
+# 5. Configure Kaggle API (for data download)
+# Place kaggle.json in ~/.kaggle/ or set KAGGLE_USERNAME & KAGGLE_KEY
 ```
 
-### 2. Create your feature branch
-
-Do NOT push directly to `main`. All changes go through pull requests.
+### Running the Pipeline
 
 ```bash
-# Create and switch to your feature branch
-git checkout -b feature/<your-name-or-feature>
+# Option A: Full pipeline via DVC
+dvc repro
 
-# Examples:
-git checkout -b feature/data-pipeline
-git checkout -b feature/model-training
-git checkout -b feature/serving-monitoring
-```
-
-### 3. Work, commit, and push your branch
-
-```bash
-# Make your changes, then:
-git add <files-you-changed>
-git commit -m "Descriptive commit message"
-git push -u origin feature/<your-branch-name>
-```
-
-### 4. Open a Pull Request
-
-1. Go to the repo on GitHub
-2. Click "Compare & pull request" (appears after you push)
-3. Target branch: `main`
-4. Add a description of what you did
-5. Wait for review and approval before merging
-
-### 5. Keep your branch up to date
-
-```bash
-# Pull latest main into your branch periodically
-git checkout feature/<your-branch-name>
-git pull origin main
-```
-
-### 6. Pull data and run the pipeline
-
-```bash
-dvc pull
-
-# Data pipeline
-python -m src.data.ingest
-python -m src.data.validate
-python -m src.data.preprocess
-
-# Training
+# Option B: Step by step
+python -m src.data.ingest --output data/raw
+python -m src.data.validate --data-dir data/raw
+python -m src.data.preprocess --config configs/train_config.yaml
 python -m src.training.train --config configs/train_config.yaml
+python -m src.serving.export_model --checkpoint models/best_resnet18.pt
+```
 
-# Start the API
+### Running Experiments
+
+```bash
+# Train all model variants and generate comparison report
+python -m src.training.run_experiments
+
+# View results in MLflow UI
+mlflow ui --port 5000
+# Open http://localhost:5000
+```
+
+### Starting the API
+
+```bash
+# Option A: Direct
 uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
 
-# Or run via Docker
+# Option B: Docker
 docker-compose up --build
 ```
 
-## API Usage
+### API Usage
 
 ```bash
 # Health check
 curl http://localhost:8000/health
 
-# Predict
-curl -X POST http://localhost:8000/predict -F "file=@test_image.png"
+# Single prediction
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@test_image.png"
+
+# Response format:
+# {
+#   "prediction_id": "uuid",
+#   "label": "defective",
+#   "confidence": 0.94,
+#   "defective": true,
+#   "inference_time_ms": 15.2,
+#   "timestamp": "2024-01-15T10:30:00"
+# }
 ```
 
-Response:
-```json
-{
-  "prediction": "defective",
-  "confidence": 0.94,
-  "model_version": "v1.0",
-  "timestamp": "2026-08-10T14:30:00Z"
-}
+### Running Drift Simulation
+
+```bash
+# Simulate lighting drift
+python -m src.monitoring.simulate_drift --drift-type lighting --steps 50
+
+# Simulate mixed drift
+python -m src.monitoring.simulate_drift --drift-type mixed --steps 50
+
+# View retraining trigger demo
+python -m src.monitoring.retrain_strategy
 ```
+
+## Design Decisions
+
+| Decision | Choice | Justification |
+|----------|--------|---------------|
+| ML Framework | PyTorch | Industry standard for vision, strong transfer-learning support |
+| Experiment Tracking | MLflow | Open-source, model registry, easy metric comparison |
+| Data Versioning | DVC | Git-like workflow for large binary files, pipeline DAG |
+| API Framework | FastAPI | Async support, auto-docs (Swagger), Pydantic validation |
+| Containerization | Docker | Reproducible deployment, environment isolation |
+| Model Architecture | ResNet18 | Best accuracy/speed tradeoff for binary classification |
+| Drift Detection | Multi-signal (confidence + KS-test + input features) | Robust detection; no single signal catches all drift types |
+| Retraining | Fine-tune from current model | Faster adaptation, preserves learned features |
+| Export Format | TorchScript | No Python dependency at inference, JIT optimization |
+
+## Module Details
+
+### M2 — Data Engineering & Versioning (Week 1)
+- Automated Kaggle download with fallback to local ingestion
+- Image validation: format, corruption, size, duplicate detection
+- Preprocessing: RGB conversion, resize to 224x224, LANCZOS resampling
+- Stratified train/val/test split (70/15/15) maintaining class balance
+- Dataset versioning via DVC with pipeline DAG
+
+### M3 — Experimentation & Reproducibility (Week 2)
+- 4 experiments: CNN baseline, ResNet18 (2 variants), EfficientNet-B0
+- Full MLflow tracking: hyperparams, epoch metrics, artifacts, models
+- Early stopping with patience=5 on validation accuracy
+- Reproducible via logged configs and fixed random seeds
+- Comparison report with quantitative analysis
+
+### M4 — Model Packaging & Deployment (Week 3)
+- TorchScript export with output verification
+- FastAPI with input validation (file type, size, dimensions)
+- Batch prediction endpoint (up to 16 images)
+- Docker multi-stage build (slim production image)
+- Inference benchmarking (latency percentiles, throughput)
+
+### M5 — Monitoring, Drift & Retraining (Week 4)
+- Prediction logging (confidence, labels, timestamps)
+- Multi-signal drift detection (confidence, KS-test, input features)
+- 4 drift simulation scenarios (lighting, angle, noise, mixed)
+- Documented retraining trigger with urgency levels
+- A/B testing workflow design for safe model updates
+
+## Third-Party Libraries
+
+| Library | Version | Purpose | License |
+|---------|---------|---------|---------|
+| PyTorch | 2.1.0 | Deep learning framework | BSD |
+| torchvision | 0.16.0 | Vision models & transforms | BSD |
+| MLflow | 2.9.1 | Experiment tracking | Apache 2.0 |
+| DVC | 3.30.1 | Data versioning | Apache 2.0 |
+| FastAPI | 0.104.1 | REST API framework | MIT |
+| scikit-learn | 1.3.2 | Metrics & splitting | BSD |
+| Pillow | 10.1.0 | Image processing | HPND |
+| scipy | 1.11.4 | Statistical tests | BSD |
+| evidently | 0.4.10 | ML monitoring | Apache 2.0 |
 
 ## License
 
-This project is for academic purposes as part of BITS Pilani ML Engineering coursework.
+Academic project. All third-party libraries and datasets are used under their respective open-source licenses as cited above.
