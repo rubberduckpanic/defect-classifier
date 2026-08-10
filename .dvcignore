@@ -1,0 +1,5 @@
+# DVC ignore patterns
+.git
+.dvc
+__pycache__
+.ipynb_checkpoints
