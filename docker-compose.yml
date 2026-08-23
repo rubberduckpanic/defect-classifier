@@ -1,21 +1,43 @@
+# Docker Compose for Defect Classifier Services
+# Runs the API server and MLflow tracking server
+
 version: "3.8"
 
 services:
+  # Main prediction API
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     ports:
       - "8000:8000"
     volumes:
-      - ./models:/app/models
+      - ./models:/app/models:ro
       - ./logs:/app/logs
     environment:
-      - MODEL_PATH=models/best_model.pt
+      - MODEL_PATH=/app/models/best_resnet18.pt
       - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # MLflow tracking server
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.14.1
+    image: python:3.10-slim
+    command: >
+      bash -c "pip install mlflow==2.9.1 &&
+               mlflow server --host 0.0.0.0 --port 5000
+               --backend-store-uri sqlite:///mlflow/mlflow.db
+               --default-artifact-root /mlflow/artifacts"
     ports:
       - "5000:5000"
     volumes:
-      - ./mlruns:/mlflow/mlruns
-    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns
+      - ./mlflow_data:/mlflow
+    restart: unless-stopped
+
+volumes:
+  mlflow_data:
