@@ -1,0 +1,25 @@
+2026-08-29 01:29:10,655 - INFO - Step 1: Preprocessing images...
+2026-08-29 01:29:10,655 - INFO - Processing class: defective
+2026-08-29 01:31:03,867 - INFO - Processing class: non_defective
+2026-08-29 01:32:26,950 - INFO - Preprocessing complete: 7204 processed, 0 failed
+2026-08-29 01:32:26,950 - INFO - Step 2: Creating data splits...
+2026-08-29 01:32:27,474 - INFO - Total images for splitting: 7204
+2026-08-29 01:33:39,077 - INFO - train: 5042 images
+2026-08-29 01:33:54,102 - INFO - val: 1081 images
+2026-08-29 01:34:10,702 - INFO - test: 1081 images
+2026-08-29 01:34:11,193 - INFO -   train distribution: {'defective': 2916, 'non_defective': 2126}
+2026-08-29 01:34:11,407 - INFO -   val distribution: {'defective': 625, 'non_defective': 456}
+2026-08-29 01:34:11,569 - INFO -   test distribution: {'defective': 626, 'non_defective': 455}
+2026-08-29 01:34:11,652 - INFO - Step 3: Computing dataset statistics...
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python310\lib\runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python310\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "D:\ML project bits\defect-classifier\src\data\preprocess.py", line 266, in <module>
+    stats = get_dataset_stats(data_config["splits_dir"])
+  File "D:\ML project bits\defect-classifier\src\data\preprocess.py", line 220, in get_dataset_stats
+    img = np.array(Image.open(img_file).convert("RGB")) / 255.0
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python310\lib\site-packages\PIL\Image.py", line 3305, in open
+    raise UnidentifiedImageError(msg)
+PIL.UnidentifiedImageError: cannot identify image file 'D:\\ML project bits\\defect-classifier\\data\\splits\\train\\defective\\cast_def_0_9553.png'

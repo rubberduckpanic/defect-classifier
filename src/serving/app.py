@@ -11,7 +11,9 @@ Features:
 """
 
 import io
+import json
 import logging
+import os
 import time
 import uuid
 from datetime import datetime
@@ -25,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
 from torchvision import transforms
+
+from src.monitoring.drift_detector import DriftDetector
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -83,6 +87,17 @@ class ModelService:
         self.class_names = ["non_defective", "defective"]
         self.start_time = time.time()
         self.prediction_log: list = []
+        self.prediction_log_path = Path(
+            os.environ.get("PREDICTION_LOG_PATH", "logs/predictions.jsonl")
+        )
+        self.drift_detector = DriftDetector()
+
+    def _persist_prediction(self, prediction: dict) -> None:
+        """Persist a prediction record and feed it to drift monitoring."""
+        self.prediction_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.prediction_log_path.open("a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(prediction) + "\n")
+        self.drift_detector.log_prediction(prediction)
 
     def load_model(self, model_path: str = "models/best_resnet18.pt"):
         """Load trained model from checkpoint."""
@@ -167,8 +182,11 @@ class ModelService:
             "inference_time_ms": inference_time,
             "timestamp": datetime.utcnow().isoformat(),
             "probabilities": probabilities[0].cpu().numpy().tolist(),
+            "image_brightness": float(np.asarray(image).mean() / 255.0),
+            "image_contrast": float(np.asarray(image).std() / 255.0),
         }
         self.prediction_log.append(prediction_record)
+        self._persist_prediction(prediction_record)
 
         return prediction_record
 
@@ -180,7 +198,7 @@ model_service = ModelService()
 @app.on_event("startup")
 async def startup_event():
     """Load model on application startup."""
-    model_path = "models/best_resnet18.pt"
+    model_path = os.environ.get("MODEL_PATH", "models/best_resnet18.pt")
     try:
         model_service.load_model(model_path)
     except Exception as e:
@@ -286,7 +304,15 @@ async def predict(file: UploadFile = File(...)):
 @app.get("/predictions/recent")
 async def recent_predictions(limit: int = 50):
     """Get recent prediction logs for monitoring."""
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 1000")
     return model_service.prediction_log[-limit:]
+
+
+@app.get("/monitoring/summary")
+async def monitoring_summary():
+    """Return the current drift monitoring summary."""
+    return model_service.drift_detector.get_summary()
 
 
 @app.post("/predict/batch")
@@ -295,6 +321,8 @@ async def predict_batch(files: list[UploadFile] = File(...)):
     Batch prediction endpoint for multiple images.
     Limited to 16 images per request.
     """
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one image is required")
     if len(files) > 16:
         raise HTTPException(
             status_code=400,
@@ -303,12 +331,25 @@ async def predict_batch(files: list[UploadFile] = File(...)):
 
     results = []
     for file in files:
+        if file.content_type not in ["image/jpeg", "image/png", "image/bmp"]:
+            results.append({"error": "Invalid file type", "filename": file.filename})
+            continue
         contents = await file.read()
+        if len(contents) > 10 * 1024 * 1024:
+            results.append({"error": "File too large", "filename": file.filename})
+            continue
         try:
             image = Image.open(io.BytesIO(contents)).convert("RGB")
+            if image.size[0] < 32 or image.size[1] < 32:
+                results.append({"error": "Image too small", "filename": file.filename})
+                continue
+            if model_service.model is None:
+                raise HTTPException(status_code=503, detail="Model not loaded")
             result = model_service.predict(image)
             results.append(result)
-        except Exception as e:
-            results.append({"error": str(e), "filename": file.filename})
+        except HTTPException:
+            raise
+        except Exception:
+            results.append({"error": "Cannot decode or infer image", "filename": file.filename})
 
     return {"predictions": results, "total": len(results)}

@@ -4,14 +4,14 @@
 
 stages:
   ingest:
-    cmd: python -m src.data.ingest --output data/raw
+    cmd: python -m src.data.ingest --output data/raw --source ${CASTING_DATASET_DIR}
     deps:
       - src/data/ingest.py
     outs:
       - data/raw
 
   validate:
-    cmd: python -m src.data.validate --data-dir data/raw
+    cmd: python -m src.data.validate --data-dir data/raw --output logs/validation_report.json
     deps:
       - src/data/validate.py
       - data/raw
@@ -44,9 +44,9 @@ stages:
           cache: false
 
   export:
-    cmd: python -m src.serving.export_model --checkpoint models/best_resnet18.pt --format torchscript
+    cmd: python -m src.training.export_model --checkpoint models/best_resnet18.pt --format torchscript
     deps:
-      - src/serving/export_model.py
+      - src/training/export_model.py
       - models/best_resnet18.pt
     outs:
       - models/model_scripted.pt

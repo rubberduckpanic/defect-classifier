@@ -25,7 +25,8 @@ augmentation:
 model:
   # Options: "cnn_baseline", "resnet18", "efficientnet_b0"
   architecture: "resnet18"
-  pretrained: true
+  # Set true when ImageNet weights are already cached or HTTPS certificates are configured.
+  pretrained: false
   num_classes: 2
   dropout: 0.3
   freeze_backbone: false

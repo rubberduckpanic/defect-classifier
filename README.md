@@ -73,7 +73,301 @@ defect-classifier/
 - Source: https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product
 - Binary classification: defective vs non-defective casting products
 - ~7000 images (300x300 grayscale)
-- License: CC0 Public Domain
+- Dataset owner: Ravirajsinh45
+- License: CC0 Public Domain (verify the current Kaggle dataset page before redistribution)
+- Provenance: downloaded from Kaggle and staged from the extracted archive; record the download date and archive checksum in the experiment log.
+
+For local ingestion after extracting the archive, set `CASTING_DATASET_DIR` to its
+root and run:
+
+```bash
+python -m src.data.ingest --source "$CASTING_DATASET_DIR" --output data/raw
+python -m src.data.validate --data-dir data/raw --output logs/validation_report.json
+python -m src.data.preprocess --config configs/train_config.yaml
+```
+
+The normalized labels are `defective` and `non_defective`. The original Kaggle
+dataset and its authors must be cited in submitted reports and presentations.
+
+## End-to-End Runbook
+
+The following commands describe the complete Windows workflow from the Kaggle
+archive to model training, API prediction, monitoring, and submission evidence.
+
+### 1. Select the project Python environment
+
+Use Python 3.10 for all commands. This avoids conflicts with other Python
+installations and matches the pinned project dependencies.
+
+```powershell
+$Python = "C:\Users\Admin\AppData\Local\Programs\Python\Python310\python.exe"
+Set-Location "D:\ML project bits\defect-classifier"
+& $Python --version
+```
+
+### 2. Download and extract the Kaggle dataset
+
+Dataset page:
+
+<https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product>
+
+Download the archive from Kaggle and save it outside the repository, for
+example as `C:\Users\Admin\Downloads\archive.zip`. Extract it with:
+
+```powershell
+$Archive = "C:\Users\Admin\Downloads\archive.zip"
+$DatasetRoot = "C:\Users\Admin\Downloads\casting_dataset"
+Expand-Archive -LiteralPath $Archive -DestinationPath $DatasetRoot -Force
+```
+
+The structured dataset should contain:
+
+```text
+casting_dataset\casting_data\casting_data\train\def_front
+casting_dataset\casting_data\casting_data\train\ok_front
+casting_dataset\casting_data\casting_data\test\def_front
+casting_dataset\casting_data\casting_data\test\ok_front
+```
+
+The archive may contain a second flat `casting_512x512` copy. The pipeline
+uses the structured train/test folders.
+
+### 3. Record dataset provenance
+
+The dataset owner is `Ravirajsinh45`. The Kaggle page identifies the dataset as
+CC0 Public Domain; verify the current Kaggle license before redistribution.
+Record the access date and archive checksum in the final report:
+
+```powershell
+Get-FileHash "C:\Users\Admin\Downloads\archive.zip" -Algorithm SHA256
+```
+
+Record the resulting `Hash` value together with:
+
+```text
+Dataset: Casting Product Image Data for Quality Inspection
+Owner: Ravirajsinh45
+Source: https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product
+Access date: 2026-08-29
+License: CC0 Public Domain (verify current Kaggle page)
+Archive: C:\Users\Admin\Downloads\archive.zip
+SHA256: <paste Get-FileHash result here>
+```
+
+Never commit `kaggle.json`, API keys, or other credentials.
+
+### 4. Stage and validate images
+
+The ingestion command converts Kaggle labels to the project labels
+`defective` and `non_defective`:
+
+```powershell
+$env:CASTING_DATASET_DIR = "C:\Users\Admin\Downloads\casting_dataset"
+& $Python -m src.data.ingest `
+  --source $env:CASTING_DATASET_DIR `
+  --output data/raw
+
+& $Python -m src.data.validate `
+  --data-dir data/raw `
+  --output logs/validation_report.json
+```
+
+Inspect the validation artifact:
+
+```powershell
+Get-Content logs\validation_report.json
+```
+
+The report records valid, corrupt, invalid, anomalous, duplicate, and
+per-class image counts.
+
+### 5. Preprocess and split the dataset
+
+Images are converted to RGB, resized to 224 x 224, normalized, and split
+stratifiably into 70% training, 15% validation, and 15% test data.
+
+```powershell
+& $Python -m src.data.preprocess `
+  --config configs/train_config.yaml
+```
+
+The expected directories are:
+
+```text
+data\processed\defective
+data\processed\non_defective
+data\splits\train
+data\splits\val
+data\splits\test
+```
+
+The split seed is `42`.
+
+### 6. Train the model
+
+The default configuration trains ResNet18 for five epochs. It uses CPU or
+CUDA automatically. `pretrained: false` avoids requiring an ImageNet download
+when the local Python SSL certificate chain cannot verify the download server.
+
+Run only one training process:
+
+```powershell
+& $Python -u -m src.training.train `
+  --config configs/train_config.yaml
+```
+
+The `-u` option displays progress immediately. Successful output includes
+`Data loaded` and `Epoch 1/5`. The best checkpoint is:
+
+```text
+models\best_resnet18.pt
+```
+
+### 7. Inspect MLflow experiments
+
+Training creates the local SQLite tracking database `mlflow.db`. It stores
+parameters, metrics, run IDs, and artifacts; it does not store the Kaggle
+images.
+
+```powershell
+& $Python -c "import mlflow; mlflow.set_tracking_uri('sqlite:///mlflow.db'); print(mlflow.search_runs(experiment_names=['defect_classification']).to_string(index=False))"
+```
+
+Start the MLflow UI when needed:
+
+```powershell
+& $Python -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+```
+
+Open <http://localhost:5000>. For the rubric, record run IDs and measured
+accuracy, precision, recall, and F1 for at least two successful experiments.
+
+### 8. Evaluate and export the model
+
+Evaluate the checkpoint against the test split:
+
+```powershell
+& $Python -c "from src.training.evaluate import evaluate_model; print(evaluate_model('models/best_resnet18.pt', 'data/splits/test'))"
+```
+
+Export TorchScript for deployment:
+
+```powershell
+& $Python -m src.training.export_model `
+  --checkpoint models/best_resnet18.pt `
+  --format torchscript
+```
+
+Expected artifact:
+
+```text
+models\model_scripted.pt
+```
+
+### 9. Start and verify the API
+
+Start the API in a separate terminal:
+
+```powershell
+& $Python -m uvicorn src.serving.app:app `
+  --host 0.0.0.0 `
+  --port 8000
+```
+
+Check status and model metadata:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:8000/model-info | ConvertTo-Json
+```
+
+After the checkpoint is loaded, health should report:
+
+```json
+{"status":"healthy","model_loaded":true,"device":"cpu"}
+```
+
+Open the interactive API documentation at <http://localhost:8000/docs>.
+
+### 10. Send a prediction request
+
+Use an image from the test split:
+
+```powershell
+$Image = Get-ChildItem data\splits\test\defective -File | Select-Object -First 1
+curl.exe -X POST "http://localhost:8000/predict" `
+  -F "file=@$($Image.FullName)"
+```
+
+The response contains a prediction ID, label, confidence, defective flag,
+inference time, and timestamp. Up to 16 images can be sent to
+`/predict/batch`.
+
+### 11. Check logging and monitoring
+
+Successful predictions are appended to `logs/predictions.jsonl` and sent to
+the drift detector with brightness and contrast statistics.
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/predictions/recent?limit=10" | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:8000/monitoring/summary | ConvertTo-Json
+```
+
+Run drift simulations:
+
+```powershell
+& $Python -m src.monitoring.simulate_drift `
+  --model models/best_resnet18.pt `
+  --test-dir data/splits/test `
+  --drift-type lighting `
+  --steps 50
+
+& $Python -m src.monitoring.simulate_drift `
+  --model models/best_resnet18.pt `
+  --test-dir data/splits/test `
+  --drift-type angle `
+  --steps 50
+```
+
+These commands generate drift results under `logs/`. The trigger demonstration
+is run with:
+
+```powershell
+& $Python -m src.monitoring.retrain_strategy
+```
+
+The retraining workflow evaluates confidence, monitored accuracy, distribution
+shift, and scheduled refresh signals. Candidate promotion requires measured
+performance to meet the configured baseline.
+
+### 12. Run tests and collect submission evidence
+
+Run the complete test suite:
+
+```powershell
+& $Python -m pytest -q 2>&1 | Tee-Object logs\pytest_result.txt
+```
+
+Keep these artifacts for the demonstration:
+
+```text
+logs\validation_report.json
+logs\pytest_result.txt
+logs\health_response.json
+logs\prediction_response.json
+logs\predictions.jsonl
+logs\drift_simulation_lighting.json
+logs\monitoring_log.json
+logs\retrain_state.json
+models\best_resnet18.pt
+models\model_scripted.pt
+mlflow.db
+```
+
+Also capture screenshots of the MLflow UI, Swagger API page, healthy `/health`
+response, successful `/predict` response, drift output, and test results.
+Finally, cite the Kaggle dataset and all third-party libraries in the final
+report and presentation.
 
 ## Setup Instructions to follow
 
@@ -116,7 +410,7 @@ python -m src.data.ingest --output data/raw
 python -m src.data.validate --data-dir data/raw
 python -m src.data.preprocess --config configs/train_config.yaml
 python -m src.training.train --config configs/train_config.yaml
-python -m src.serving.export_model --checkpoint models/best_resnet18.pt
+python -m src.training.export_model --checkpoint models/best_resnet18.pt --format torchscript
 ```
 
 ### Running Experiments
