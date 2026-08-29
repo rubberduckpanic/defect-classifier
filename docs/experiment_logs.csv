@@ -1,0 +1,3 @@
+run_id,architecture,pretrained,epochs,learning_rate,batch_size,total_params,test_accuracy,test_precision,test_recall,test_f1,best_val_accuracy
+ef55cc78de29,resnet18,True,5,0.001,32,11177538,0.9935,1.0,0.9888,0.9944,0.9991
+05242b4ee78f,cnn_baseline,False,3,0.001,32,422530,0.6253,0.6072,1.0,0.7556,0.6189

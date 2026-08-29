@@ -82,9 +82,15 @@ report.append(f"- **F1 Score:** {best['test_f1']}")
 report.append(f"- **Run ID:** `{best['run_id']}`\n")
 
 report.append("## Justification for Model Choice\n")
-report.append("The **ResNet18 (transfer learning)** model was selected as the production model:\n")
-report.append("1. **Transfer learning advantage** — Pretrained ImageNet features transfer well to "
-              "defect detection, significantly outperforming the from-scratch CNN baseline.")
+best_is_pretrained = str(best["pretrained"]).lower() == "true"
+if best_is_pretrained:
+    report.append("The **ResNet18 (transfer learning)** model was selected as the production model:\n")
+    report.append("1. **Transfer learning advantage** — Pretrained ImageNet features transfer well to "
+                  "defect detection and support strong visual feature extraction.")
+else:
+    report.append("The **ResNet18 (trained from scratch)** model was selected as the current production model:\n")
+    report.append("1. **Offline reproducibility** — The run used `pretrained=False`, so it did not depend "
+                  "on downloading ImageNet weights and was reproducible in the current environment.")
 report.append("2. **Accuracy/speed balance** — ResNet18 (~11M params) offers near-best accuracy with "
               "faster inference than heavier models, suitable for production line throughput.")
 report.append("3. **Deployment maturity** — Well-supported for TorchScript export and containerized serving.\n")
