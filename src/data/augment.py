@@ -1,19 +1,16 @@
-"""Data augmentation module.
+"""Shared augmentation transform factory."""
 
-Applies augmentation transforms to increase training data diversity.
-"""
-
-
-def get_train_transforms():
-    """Return Albumentations compose pipeline for training augmentation."""
-    # TODO: Define augmentation pipeline (flips, rotations, brightness, etc.)
-    raise NotImplementedError
+from src.training.dataset import get_eval_transforms, get_train_transforms as build_train_transforms
 
 
-def get_val_transforms():
-    """Return minimal transforms for validation/test (resize + normalize only)."""
-    # TODO: Define validation transforms
-    raise NotImplementedError
+def get_train_transforms(config: dict):
+    """Return the configured training augmentation pipeline."""
+    return build_train_transforms(config)
+
+
+def get_val_transforms(config: dict):
+    """Return the configured validation/test transform pipeline."""
+    return get_eval_transforms(config)
 
 
 if __name__ == "__main__":

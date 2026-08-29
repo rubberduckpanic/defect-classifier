@@ -1,0 +1,100 @@
+{
+  "info": {
+    "name": "Defect Classifier API",
+    "description": "Image-based defect detection API test collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Model Info",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/model-info",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["model-info"]
+        }
+      }
+    },
+    {
+      "name": "Predict - Single Image",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "data/splits/test/defective/cast_def_0_1000.png"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:8000/predict",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["predict"]
+        }
+      }
+    },
+    {
+      "name": "Predict - Batch",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "files",
+              "type": "file",
+              "src": "data/splits/test/defective/cast_def_0_1000.png"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:8000/predict/batch",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["predict", "batch"]
+        }
+      }
+    },
+    {
+      "name": "Recent Predictions",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/predictions/recent?limit=10",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["predictions", "recent"],
+          "query": [{ "key": "limit", "value": "10" }]
+        }
+      }
+    }
+  ]
+}

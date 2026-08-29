@@ -252,6 +252,44 @@ class RetrainingTrigger:
         logger.info(f"Retrain state saved to {output_path}")
 
 
+def execute_retraining(
+    decision: Dict,
+    config_path: str = "configs/train_config.yaml",
+    state_path: str = "logs/retrain_state.json",
+) -> Dict:
+    """Run and evaluate a candidate model after a positive trigger decision.
+
+    Promotion remains a separate decision: the candidate is recorded only when
+    its measured accuracy is at least the current baseline.
+    """
+    if not decision.get("should_retrain"):
+        return {"status": "skipped", "reason": "no retraining trigger"}
+
+    from src.training.evaluate import evaluate_model
+    from src.training.train import train_model
+
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        import importlib
+        config = importlib.import_module("yaml").safe_load(config_file)
+    results = train_model(config)
+    evaluation = evaluate_model(results["model_path"], config["data"]["splits_dir"] + "/test")
+    baseline = decision.get("baseline_accuracy", 0.0)
+    promoted = evaluation["accuracy"] >= baseline
+    result = {
+        "status": "promoted" if promoted else "rejected",
+        "model_path": results["model_path"],
+        "metrics": evaluation,
+        "baseline_accuracy": baseline,
+        "triggers": decision.get("triggers_fired", []),
+    }
+    result["new_version"] = f"v{datetime.utcnow().strftime('%Y%m%d%H%M%S')}" if promoted else None
+    if promoted:
+        trigger = RetrainingTrigger(baseline_accuracy=baseline)
+        trigger.record_retrain(result)
+        trigger.save_state(state_path)
+    return result
+
+
 if __name__ == "__main__":
     # Demo: Simulate monitoring data and trigger evaluation
     trigger = RetrainingTrigger(

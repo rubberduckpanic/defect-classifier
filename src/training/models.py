@@ -84,9 +84,15 @@ class ResNet18Classifier(nn.Module):
                  dropout: float = 0.3, freeze_backbone: bool = False):
         super().__init__()
 
-        # Load pretrained ResNet18
+        # Load pretrained ResNet18 when available; support offline training.
         weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
-        self.backbone = models.resnet18(weights=weights)
+        try:
+            self.backbone = models.resnet18(weights=weights)
+        except Exception as error:
+            if not pretrained:
+                raise
+            print(f"Pretrained ResNet18 unavailable ({error}); using random initialization.")
+            self.backbone = models.resnet18(weights=None)
 
         # Optionally freeze backbone layers
         if freeze_backbone:
@@ -117,9 +123,15 @@ class EfficientNetB0Classifier(nn.Module):
                  dropout: float = 0.3, freeze_backbone: bool = False):
         super().__init__()
 
-        # Load pretrained EfficientNet-B0
+        # Load pretrained EfficientNet-B0 when available; support offline training.
         weights = models.EfficientNet_B0_Weights.IMAGENET1K_V1 if pretrained else None
-        self.backbone = models.efficientnet_b0(weights=weights)
+        try:
+            self.backbone = models.efficientnet_b0(weights=weights)
+        except Exception as error:
+            if not pretrained:
+                raise
+            print(f"Pretrained EfficientNet-B0 unavailable ({error}); using random initialization.")
+            self.backbone = models.efficientnet_b0(weights=None)
 
         # Optionally freeze backbone
         if freeze_backbone:

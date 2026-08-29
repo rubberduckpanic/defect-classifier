@@ -10,6 +10,7 @@ Validation checks:
 """
 
 import hashlib
+import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -166,6 +167,22 @@ def validate_dataset(data_dir: str = "data/raw") -> ValidationReport:
     return report
 
 
+def write_validation_report(report: ValidationReport, output_path: str) -> None:
+    """Persist validation metrics for DVC and downstream review."""
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "total_images": report.total_images,
+        "valid_images": report.valid_images,
+        "corrupt_images": len(report.corrupt_images),
+        "invalid_format": len(report.invalid_format),
+        "size_anomalies": len(report.size_anomalies),
+        "duplicates": len(report.duplicates),
+        "class_distribution": report.class_distribution,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def remove_invalid_images(data_dir: str = "data/raw", dry_run: bool = True) -> List[str]:
     """
     Remove corrupt or invalid images from the dataset.
@@ -197,6 +214,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validate dataset images")
     parser.add_argument("--data-dir", type=str, default="data/raw",
                         help="Path to raw data directory")
+    parser.add_argument("--output", type=str, default="logs/validation_report.json",
+                        help="Path for the JSON validation report")
     parser.add_argument("--remove-invalid", action="store_true",
                         help="Remove invalid images (default: dry run)")
     args = parser.parse_args()
@@ -205,4 +224,5 @@ if __name__ == "__main__":
         remove_invalid_images(args.data_dir, dry_run=False)
     else:
         report = validate_dataset(args.data_dir)
+        write_validation_report(report, args.output)
         print(report.summary())
