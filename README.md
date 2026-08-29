@@ -4,25 +4,36 @@ An end-to-end ML system that automatically flags defective products from images 
 
 ## Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         ML System Architecture                                   │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  ┌────────────┐    ┌────────────────┐    ┌────────────────┐    ┌─────────────┐  │
-│  │   Data      │    │  Experiment    │    │    Model       │    │ Monitoring  │  │
-│  │  Pipeline   │───▶│  Tracking      │───▶│   Serving      │───▶│  & Drift    │  │
-│  │   (M2)      │    │   (M3)         │    │    (M4)        │    │   (M5)      │  │
-│  └────────────┘    └────────────────┘    └────────────────┘    └─────────────┘  │
-│       │                   │                      │                     │         │
-│       ▼                   ▼                      ▼                     ▼         │
-│  ┌────────────┐    ┌────────────────┐    ┌────────────────┐    ┌─────────────┐  │
-│  │ DVC         │    │ MLflow         │    │ FastAPI        │    │ Drift       │  │
-│  │ Versioned   │    │ Experiments    │    │ + Docker       │    │ Detection   │  │
-│  │ Dataset     │    │ & Registry     │    │ Container      │    │ & Retrain   │  │
-│  └────────────┘    └────────────────┘    └────────────────┘    └─────────────┘  │
-│                                                                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  A["Kaggle casting images"] --> B
+
+  subgraph M2["M2 - Data pipeline"]
+    B["Ingest and normalize labels"] --> C["Validate images"]
+    C --> D["Resize, RGB conversion, augmentation"]
+    D --> E["Stratified train / val / test splits"]
+  end
+
+  subgraph M3["M3 - Training and tracking"]
+    E --> F["CNN baseline"]
+    E --> G["ResNet18 / EfficientNet-B0"]
+    F --> H["MLflow metrics and artifacts"]
+    G --> H
+    H --> I["Best checkpoint"]
+  end
+
+  subgraph M4["M4 - Packaging and serving"]
+    I --> J["TorchScript / ONNX export"]
+    I --> K["FastAPI REST API"]
+    K --> L["/health, /predict, /predict/batch"]
+  end
+
+  subgraph M5["M5 - Monitoring and retraining"]
+    L --> N["Prediction logs"]
+    N --> O["Confidence, KS-test, image drift"]
+    O --> P["Retraining trigger"]
+    P -. "new labeled data" .-> D
+  end
 ```
 
 ## Project Structure
