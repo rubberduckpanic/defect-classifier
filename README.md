@@ -73,7 +73,6 @@ defect-classifier/
 - Source: https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product
 - Binary classification: defective vs non-defective casting products
 - ~7000 images (300x300 grayscale)
-- Dataset owner: Ravirajsinh45
 - License: CC0 Public Domain (verify the current Kaggle dataset page before redistribution)
 - Provenance: downloaded from Kaggle and staged from the extracted archive; record the download date and archive checksum in the experiment log.
 
@@ -97,12 +96,14 @@ archive to model training, API prediction, monitoring, and submission evidence.
 ### 1. Select the project Python environment
 
 Use Python 3.10 for all commands. This avoids conflicts with other Python
-installations and matches the pinned project dependencies.
+installations and matches the pinned project dependencies. Run the commands
+from the repository root.
 
 ```powershell
-$Python = "C:\Users\Admin\AppData\Local\Programs\Python\Python310\python.exe"
-Set-Location "D:\ML project bits\defect-classifier"
-& $Python --version
+$ProjectRoot = (Get-Location).Path
+$Python = "py"
+$PythonArgs = @("-3.10")
+& $Python @PythonArgs --version
 ```
 
 ### 2. Download and extract the Kaggle dataset
@@ -112,11 +113,11 @@ Dataset page:
 <https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product>
 
 Download the archive from Kaggle and save it outside the repository, for
-example as `C:\Users\Admin\Downloads\archive.zip`. Extract it with:
+example as `$env:USERPROFILE\Downloads\archive.zip`. Extract it with:
 
 ```powershell
-$Archive = "C:\Users\Admin\Downloads\archive.zip"
-$DatasetRoot = "C:\Users\Admin\Downloads\casting_dataset"
+$Archive = Join-Path $env:USERPROFILE "Downloads\archive.zip"
+$DatasetRoot = Join-Path $env:USERPROFILE "Downloads\casting_dataset"
 Expand-Archive -LiteralPath $Archive -DestinationPath $DatasetRoot -Force
 ```
 
@@ -134,23 +135,22 @@ uses the structured train/test folders.
 
 ### 3. Record dataset provenance
 
-The dataset owner is `Ravirajsinh45`. The Kaggle page identifies the dataset as
-CC0 Public Domain; verify the current Kaggle license before redistribution.
+The Kaggle page identifies the dataset as CC0 Public Domain; verify the current
+Kaggle license before redistribution.
 Record the access date and archive checksum in the final report:
 
 ```powershell
-Get-FileHash "C:\Users\Admin\Downloads\archive.zip" -Algorithm SHA256
+Get-FileHash $Archive -Algorithm SHA256
 ```
 
 Record the resulting `Hash` value together with:
 
 ```text
 Dataset: Casting Product Image Data for Quality Inspection
-Owner: Ravirajsinh45
 Source: https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product
 Access date: 2026-08-29
 License: CC0 Public Domain (verify current Kaggle page)
-Archive: C:\Users\Admin\Downloads\archive.zip
+Archive: $Archive
 SHA256: <paste Get-FileHash result here>
 ```
 
@@ -162,12 +162,12 @@ The ingestion command converts Kaggle labels to the project labels
 `defective` and `non_defective`:
 
 ```powershell
-$env:CASTING_DATASET_DIR = "C:\Users\Admin\Downloads\casting_dataset"
-& $Python -m src.data.ingest `
+$env:CASTING_DATASET_DIR = $DatasetRoot
+& $Python @PythonArgs -m src.data.ingest `
   --source $env:CASTING_DATASET_DIR `
   --output data/raw
 
-& $Python -m src.data.validate `
+& $Python @PythonArgs -m src.data.validate `
   --data-dir data/raw `
   --output logs/validation_report.json
 ```
@@ -187,7 +187,7 @@ Images are converted to RGB, resized to 224 x 224, normalized, and split
 stratifiably into 70% training, 15% validation, and 15% test data.
 
 ```powershell
-& $Python -m src.data.preprocess `
+& $Python @PythonArgs -m src.data.preprocess `
   --config configs/train_config.yaml
 ```
 
@@ -212,7 +212,7 @@ when the local Python SSL certificate chain cannot verify the download server.
 Run only one training process:
 
 ```powershell
-& $Python -u -m src.training.train `
+& $Python @PythonArgs -u -m src.training.train `
   --config configs/train_config.yaml
 ```
 
@@ -230,13 +230,13 @@ parameters, metrics, run IDs, and artifacts; it does not store the Kaggle
 images.
 
 ```powershell
-& $Python -c "import mlflow; mlflow.set_tracking_uri('sqlite:///mlflow.db'); print(mlflow.search_runs(experiment_names=['defect_classification']).to_string(index=False))"
+& $Python @PythonArgs -c "import mlflow; mlflow.set_tracking_uri('sqlite:///mlflow.db'); print(mlflow.search_runs(experiment_names=['defect_classification']).to_string(index=False))"
 ```
 
 Start the MLflow UI when needed:
 
 ```powershell
-& $Python -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+& $Python @PythonArgs -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 ```
 
 Open <http://localhost:5000>. For the rubric, record run IDs and measured
@@ -247,13 +247,13 @@ accuracy, precision, recall, and F1 for at least two successful experiments.
 Evaluate the checkpoint against the test split:
 
 ```powershell
-& $Python -c "from src.training.evaluate import evaluate_model; print(evaluate_model('models/best_resnet18.pt', 'data/splits/test'))"
+& $Python @PythonArgs -c "from src.training.evaluate import evaluate_model; print(evaluate_model('models/best_resnet18.pt', 'data/splits/test'))"
 ```
 
 Export TorchScript for deployment:
 
 ```powershell
-& $Python -m src.training.export_model `
+& $Python @PythonArgs -m src.training.export_model `
   --checkpoint models/best_resnet18.pt `
   --format torchscript
 ```
@@ -269,7 +269,7 @@ models\model_scripted.pt
 Start the API in a separate terminal:
 
 ```powershell
-& $Python -m uvicorn src.serving.app:app `
+& $Python @PythonArgs -m uvicorn src.serving.app:app `
   --host 0.0.0.0 `
   --port 8000
 ```
@@ -316,13 +316,13 @@ Invoke-RestMethod http://127.0.0.1:8000/monitoring/summary | ConvertTo-Json
 Run drift simulations:
 
 ```powershell
-& $Python -m src.monitoring.simulate_drift `
+& $Python @PythonArgs -m src.monitoring.simulate_drift `
   --model models/best_resnet18.pt `
   --test-dir data/splits/test `
   --drift-type lighting `
   --steps 50
 
-& $Python -m src.monitoring.simulate_drift `
+& $Python @PythonArgs -m src.monitoring.simulate_drift `
   --model models/best_resnet18.pt `
   --test-dir data/splits/test `
   --drift-type angle `
@@ -333,7 +333,7 @@ These commands generate drift results under `logs/`. The trigger demonstration
 is run with:
 
 ```powershell
-& $Python -m src.monitoring.retrain_strategy
+& $Python @PythonArgs -m src.monitoring.retrain_strategy
 ```
 
 The retraining workflow evaluates confidence, monitored accuracy, distribution
@@ -345,7 +345,7 @@ performance to meet the configured baseline.
 Run the complete test suite:
 
 ```powershell
-& $Python -m pytest -q 2>&1 | Tee-Object logs\pytest_result.txt
+& $Python @PythonArgs -m pytest -q 2>&1 | Tee-Object logs\pytest_result.txt
 ```
 
 Keep these artifacts for the demonstration:
@@ -366,7 +366,7 @@ mlflow.db
 
 Also capture screenshots of the MLflow UI, Swagger API page, healthy `/health`
 response, successful `/predict` response, drift output, and test results.
-Finally, cite the Kaggle dataset and all third-party libraries in the final
+Finally, cite the Kaggle dataset URL and all third-party libraries in the final
 report and presentation.
 
 ## Setup Instructions to follow
