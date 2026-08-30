@@ -278,7 +278,7 @@ def train_model(config: dict) -> Dict:
         # Log classification report
         report = classification_report(
             test_labels, test_preds,
-            target_names=["non_defective", "defective"]
+            target_names=["ok_front", "def_front"]
         )
         logger.info(f"\nClassification Report:\n{report}")
 
