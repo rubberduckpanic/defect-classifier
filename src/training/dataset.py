@@ -26,8 +26,8 @@ class CastingDefectDataset(Dataset):
     Labels: 0 = non_defective, 1 = defective
     """
 
-    CLASS_NAMES = ["non_defective", "defective"]
-    CLASS_TO_IDX = {"non_defective": 0, "defective": 1}
+    CLASS_NAMES = ["ok_front", "def_front"]
+    CLASS_TO_IDX = {"ok_front": 0, "def_front": 1}
 
     def __init__(self, root_dir: str, transform: Optional[transforms.Compose] = None):
         self.root_dir = Path(root_dir)

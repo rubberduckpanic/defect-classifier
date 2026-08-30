@@ -84,7 +84,7 @@ class ModelService:
         self.transform: Optional[transforms.Compose] = None
         self.model_path: str = ""
         self.architecture: str = ""
-        self.class_names = ["non_defective", "defective"]
+        self.class_names = ["ok_front", "def_front"]
         self.start_time = time.time()
         self.prediction_log: list = []
         self.prediction_log_path = Path(
@@ -178,7 +178,7 @@ class ModelService:
             "prediction_id": str(uuid.uuid4()),
             "label": label,
             "confidence": conf,
-            "defective": label == "defective",
+            "defective": label == "def_front",
             "inference_time_ms": inference_time,
             "timestamp": datetime.utcnow().isoformat(),
             "probabilities": probabilities[0].cpu().numpy().tolist(),

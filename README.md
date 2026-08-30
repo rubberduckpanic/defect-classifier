@@ -5,31 +5,24 @@ An end-to-end ML system that automatically flags defective products from images 
 ## Architecture Diagram
 
 ```
-+--------------------------+       +--------------------------+
-| M2: DATA PIPELINE        |       | M3: TRAINING             |
-| Kaggle images            | ----> | CNN baseline             |
-| Ingest, validate         |       | ResNet18 / EfficientNet  |
-| Preprocess and split     |       | MLflow experiments       |
-| DVC dataset versioning   |       | Best checkpoint           |
-+--------------------------+       +--------------------------+
-             |                                    |
-             |                                    v
-             |                       +--------------------------+
-             +---------------------> | M4: MODEL SERVING       |
-                                     | TorchScript / ONNX       |
-                                     | FastAPI + Docker          |
-                                     | /health /predict /batch   |
-                                     +-------------+--------------+
-                                                   |
-                                                   v
-                                     +--------------------------+
-                                     | M5: MONITORING           |
-                                     | Prediction and confidence |
-                                     | KS-test and image drift   |
-                                     | Retraining trigger        |
-                                     +-------------+--------------+
-                                                   |
-                                                   +-- new labeled data --> M2
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         ML System Architecture                                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌────────────┐    ┌────────────────┐    ┌────────────────┐    ┌─────────────┐  │
+│  │   Data      │    │  Experiment    │    │    Model       │    │ Monitoring  │  │
+│  │  Pipeline   │───▶│  Tracking      │───▶│   Serving      │───▶│  & Drift    │  │
+│  │   (M2)      │    │   (M3)         │    │    (M4)        │    │   (M5)      │  │
+│  └────────────┘    └────────────────┘    └────────────────┘    └─────────────┘  │
+│       │                   │                      │                     │         │
+│       ▼                   ▼                      ▼                     ▼         │
+│  ┌────────────┐    ┌────────────────┐    ┌────────────────┐    ┌─────────────┐  │
+│  │ DVC         │    │ MLflow         │    │ FastAPI        │    │ Drift       │  │
+│  │ Versioned   │    │ Experiments    │    │ + Docker       │    │ Detection   │  │
+│  │ Dataset     │    │ & Registry     │    │ Container      │    │ & Retrain   │  │
+│  └────────────┘    └────────────────┘    └────────────────┘    └─────────────┘  │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Project Structure
