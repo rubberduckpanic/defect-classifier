@@ -170,7 +170,8 @@ class ModelService:
 
         inference_time = (time.time() - start_time) * 1000  # ms
 
-        label = self.class_names[predicted_idx.item()]
+        internal_label = self.class_names[predicted_idx.item()]
+        label = "defective" if internal_label == "def_front" else "non_defective"
         conf = confidence.item()
 
         # Log prediction for monitoring
